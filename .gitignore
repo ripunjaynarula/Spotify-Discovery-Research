@@ -1,0 +1,32 @@
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated data
+data/*.csv
+data/*.json
+
+# Generated reports
+output/*
+!output/.gitkeep
+
+# Logs
+*.log
