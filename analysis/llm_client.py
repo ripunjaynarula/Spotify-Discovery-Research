@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
+import traceback
 import time
 from collections.abc import Callable
 from json import JSONDecodeError
 from typing import Any
 
 import requests
+
+from config import OPENROUTER_API_KEY, OPENROUTER_MODEL, LLM_PROVIDER
 
 from analysis.schema import (
     ANALYSIS_FIELDS,
@@ -63,7 +65,7 @@ def analyze_review_batch(
 
 
 def generate_json_content(model: str, system_prompt: str, user_prompt: str) -> str:
-    selected_model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+    selected_model = model or OPENROUTER_MODEL or DEFAULT_MODEL
     session = _get_session()
     response = session.post(
         OPENROUTER_URL,
@@ -81,6 +83,7 @@ def generate_json_content(model: str, system_prompt: str, user_prompt: str) -> s
                 },
             ],
             "temperature": 0,
+            "max_tokens": 7000,
             "response_format": {
                 "type": "json_object",
             },
@@ -190,6 +193,11 @@ def _with_retries(
             return operation()
         except Exception as exc:
             last_error = exc
+            print(
+                f"[LLM attempt {attempt + 1}/{attempts} failed] "
+                f"{type(exc).__name__}: {exc}\n"
+                + traceback.format_exc()
+            )
             if attempt == attempts - 1:
                 break
             retry_after_seconds = getattr(last_error, "retry_after_seconds", None)
@@ -198,18 +206,24 @@ def _with_retries(
                 if retry_after_seconds is not None
                 else retry_delay_seconds * (2**attempt)
             )
+            print(f"Retrying in {delay_seconds:.1f}s…")
             time.sleep(delay_seconds)
-    raise AnalysisError(f"LLM analysis failed after {attempts} attempts.") from last_error
+    if last_error is not None:
+        raise last_error
+    raise AnalysisError("LLM analysis failed after all attempts without a captured error.")
 
 
 def _build_headers() -> dict[str, str]:
-    provider = os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER).casefold()
+    provider = (LLM_PROVIDER or DEFAULT_PROVIDER).casefold()
     if provider != DEFAULT_PROVIDER:
-        raise RuntimeError(f"Unsupported LLM_PROVIDER: {provider}")
+        raise RuntimeError(f"Unsupported LLM_PROVIDER: '{provider}'. Only 'openrouter' is supported.")
 
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = OPENROUTER_API_KEY
     if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY is required.")
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. "
+            "Add it to your .env file (local) or Streamlit Secrets (cloud)."
+        )
 
     return {
         "Authorization": f"Bearer {api_key}",
@@ -223,28 +237,29 @@ def _raise_for_response(response: requests.Response) -> None:
 
     retry_after_seconds = _parse_retry_after(response.headers.get("Retry-After"))
     response_text = response.text.strip()
+    request_url = getattr(response.request, "url", "") or "<unknown-url>"
     if response.status_code == 401:
         raise LLMRequestError(
-            f"OpenRouter authentication failed with 401. Check OPENROUTER_API_KEY. {response_text}",
+            f"OpenRouter authentication failed with 401. URL: {request_url}. Response body: {response_text}",
             retry_after_seconds=retry_after_seconds,
         )
     if response.status_code == 429:
         raise LLMRequestError(
-            f"OpenRouter rate limit exceeded with 429. {response_text}",
+            f"OpenRouter rate limit exceeded with 429. URL: {request_url}. Response body: {response_text}",
             retry_after_seconds=retry_after_seconds,
         )
     if response.status_code == 500:
         raise LLMRequestError(
-            f"OpenRouter server error 500. {response_text}",
+            f"OpenRouter server error 500. URL: {request_url}. Response body: {response_text}",
             retry_after_seconds=retry_after_seconds,
         )
     if response.status_code == 503:
         raise LLMRequestError(
-            f"OpenRouter service unavailable with 503. {response_text}",
+            f"OpenRouter service unavailable with 503. URL: {request_url}. Response body: {response_text}",
             retry_after_seconds=retry_after_seconds,
         )
     raise LLMRequestError(
-        f"OpenRouter request failed with status {response.status_code}. {response_text}",
+        f"OpenRouter request failed with status {response.status_code}. URL: {request_url}. Response body: {response_text}",
         retry_after_seconds=retry_after_seconds,
     )
 
@@ -253,7 +268,9 @@ def _extract_message_content(response: requests.Response) -> str:
     try:
         payload = response.json()
     except ValueError as exc:
-        raise AnalysisError("OpenRouter returned non-JSON response.") from exc
+        raise AnalysisError(
+            f"OpenRouter returned non-JSON response. URL: {getattr(response.request, 'url', '<unknown-url>')}. Response body: {response.text.strip()}"
+        ) from exc
 
     try:
         content = payload["choices"][0]["message"]["content"]

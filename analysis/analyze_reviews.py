@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -14,13 +13,9 @@ from config import (
     DEFAULT_RETRY_DELAY_SECONDS,
 )
 
-from dotenv import load_dotenv
-
 from analysis.llm_client import AnalysisError, analyze_review_batch
 from analysis.schema import ANALYSIS_FIELDS, empty_analysis
 from reviews.models import RAW_REVIEW_FIELDS
-
-load_dotenv()
 
 DEFAULT_INPUT_PATH = FILTERED_REVIEWS_CSV
 DEFAULT_OUTPUT_PATH = ANALYZED_REVIEWS_CSV
@@ -46,7 +41,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    load_dotenv()
     args = parse_args()
     if args.batch_size < 1:
         raise ValueError("--batch-size must be at least 1")

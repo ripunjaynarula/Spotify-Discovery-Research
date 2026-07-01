@@ -3,10 +3,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
-# Load .env if present
-load_dotenv()
+
+WORKSPACE_DIR = Path(__file__).parent.resolve()
+DATA_DIR = WORKSPACE_DIR / "data"
+OUTPUT_DIR = WORKSPACE_DIR / "output"
+
+# Load .env if present for local development.
+load_dotenv(dotenv_path=WORKSPACE_DIR / ".env", override=False)
+_DOTENV_VALUES = dotenv_values(dotenv_path=WORKSPACE_DIR / ".env")
 
 
 def get_env_var(name: str, default: str = "") -> str:
@@ -32,8 +38,11 @@ def get_env_var(name: str, default: str = "") -> str:
     except Exception:
         pass
 
-    value = os.getenv(name)
+    dotenv_value = _DOTENV_VALUES.get(name)
+    if dotenv_value not in (None, ""):
+        return str(dotenv_value)
 
+    value = os.getenv(name)
     if value:
         return value
 
@@ -41,10 +50,6 @@ def get_env_var(name: str, default: str = "") -> str:
 
 
 # Directories
-WORKSPACE_DIR = Path(__file__).parent.resolve()
-DATA_DIR = WORKSPACE_DIR / "data"
-OUTPUT_DIR = WORKSPACE_DIR / "output"
-
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -64,7 +69,7 @@ OPENROUTER_MODEL = get_env_var("OPENROUTER_MODEL", "deepseek/deepseek-chat")
 
 # Defaults
 DEFAULT_LIMIT = 100
-DEFAULT_BATCH_SIZE_FILTER = 50
+DEFAULT_BATCH_SIZE_FILTER = 10
 DEFAULT_BATCH_SIZE_ANALYZE = 10
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY_SECONDS = 2.0

@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from dotenv import load_dotenv
 from tqdm import tqdm
 
 from analysis.llm_client import AnalysisError, generate_json_content, parse_json_response
@@ -28,8 +26,6 @@ from config import (
     DEFAULT_RETRY_DELAY_SECONDS,
     DEFAULT_MIN_REVIEW_LENGTH,
 )
-
-load_dotenv()
 
 DEFAULT_INPUT_PATH = RAW_REVIEWS_CSV
 DEFAULT_OUTPUT_PATH = FILTERED_REVIEWS_CSV
@@ -509,7 +505,9 @@ def _with_retries(
             print(f"Reason: {exc}")
             print(f"Retrying in {delay_seconds} seconds...")
             time.sleep(delay_seconds)
-    raise AnalysisError(f"LLM relevance filtering failed after {attempts} attempts.") from last_error
+    if last_error is not None:
+        raise last_error
+    raise AnalysisError("LLM relevance filtering failed without a captured exception.")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ import io
 import json
 import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -80,7 +81,7 @@ class CollectionResult:
 # LOG CAPTURE  (stdout → collapsed expander, retries → inline warnings)
 # ─────────────────────────────────────────────────────────────────────────────
 class _LogCapture:
-    """Redirects stdout into a StringIO buffer and surfaces retry events."""
+    """Redirects stdout/stderr into a StringIO buffer and surfaces retry events."""
 
     def __init__(self, log_placeholder, notify_placeholder=None):
         self._log = log_placeholder
@@ -88,10 +89,16 @@ class _LogCapture:
         self._buf = io.StringIO()
 
     def write(self, text: str) -> None:
+        if not text:
+            return
         self._buf.write(text)
         self._log.code(self._buf.getvalue(), language=None)
         if self._notify and text.strip():
             self._surface_retry_notice(text)
+
+    def writelines(self, lines) -> None:
+        for line in lines:
+            self.write(line)
 
     def _surface_retry_notice(self, text: str) -> None:
         if "LLM returned no result for review ids" in text:
@@ -115,16 +122,22 @@ class _LogCapture:
     def flush(self) -> None:
         pass
 
+    def getvalue(self) -> str:
+        return self._buf.getvalue()
+
 
 @contextlib.contextmanager
 def capture_logs(log_placeholder, notify_placeholder=None):
-    """Context manager: redirect stdout to the Streamlit code block."""
-    old = sys.stdout
-    sys.stdout = _LogCapture(log_placeholder, notify_placeholder)
+    """Context manager: redirect stdout/stderr to the Streamlit code block."""
+    capture = _LogCapture(log_placeholder, notify_placeholder)
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout = capture
+    sys.stderr = capture
     try:
-        yield
+        yield capture
     finally:
-        sys.stdout = old
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -148,7 +161,6 @@ def collect_reddit_fault_tolerant(limit: int) -> CollectionResult:
 
     except Exception as exc:
         error_str = str(exc)
-        # Try to detect HTTP 403 / connection errors
         is_blocked = (
             "403" in error_str
             or "Forbidden" in error_str
@@ -172,11 +184,16 @@ def collect_reddit_fault_tolerant(limit: int) -> CollectionResult:
                     for _, row in df.iterrows()
                     if row.get("review", "").strip()
                 ]
+                fallback_error = (
+                    "Live Reddit collection unavailable (HTTP 403). Using cached Reddit dataset."
+                    if is_blocked
+                    else f"Live Reddit collection failed: {error_str}"
+                )
                 return CollectionResult(
                     source="reddit",
                     status="cached",
                     reviews=cached,
-                    error=error_str,
+                    error=fallback_error,
                 )
             except Exception as cache_exc:
                 return CollectionResult(
@@ -185,10 +202,15 @@ def collect_reddit_fault_tolerant(limit: int) -> CollectionResult:
                     error=f"Live failed ({error_str}); cache unreadable ({cache_exc})",
                 )
 
+        fallback_error = (
+            "Live Reddit collection unavailable (HTTP 403). Using cached Reddit dataset."
+            if is_blocked
+            else error_str
+        )
         return CollectionResult(
             source="reddit",
             status="skipped" if is_blocked else "failed",
-            error=error_str,
+            error=fallback_error,
         )
 
 
@@ -264,6 +286,24 @@ def onboarding_card(icon: str, heading: str, body: str) -> str:
 def elapsed(start: float) -> str:
     secs = int(time.perf_counter() - start)
     return f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
+
+
+def handle_runtime_error(
+    exc: Exception,
+    *,
+    stage_status=None,
+    progress=None,
+    log_capture=None,
+    message: str = "Operation failed",
+) -> None:
+    if log_capture is not None:
+        log_capture.write("\n\n=== FULL EXCEPTION TRACEBACK ===\n")
+        traceback.print_exception(type(exc), exc, exc.__traceback__, file=log_capture)
+    if stage_status is not None:
+        stage_status.error(f"{message}: {exc}")
+    st.exception(exc)
+    if progress is not None:
+        progress.empty()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -446,7 +486,7 @@ if navigation_page == "Dashboard":
     st.markdown("---")
     run_col, _ = st.columns([1, 3])
     run_clicked = run_col.button(
-        "Run Complete Pipeline", use_container_width=True, type="primary"
+        "Run Complete Pipeline", width="stretch", type="primary"
     )
 
     if run_clicked:
@@ -459,7 +499,7 @@ if navigation_page == "Dashboard":
         with logs_exp:
             log_placeholder = st.empty()
 
-        with capture_logs(log_placeholder, notify):
+        with capture_logs(log_placeholder, notify) as log_capture:
             try:
                 # 1 / 4 – Collect
                 stage_status.info("**Stage 1/4** — Collecting reviews from all sources…")
@@ -498,8 +538,13 @@ if navigation_page == "Dashboard":
                 notify.empty()
 
             except Exception as exc:
-                stage_status.error(f"Pipeline failed: {exc}")
-                progress.empty()
+                handle_runtime_error(
+                    exc,
+                    stage_status=stage_status,
+                    progress=progress,
+                    log_capture=log_capture,
+                    message="Pipeline failed",
+                )
 
         st.markdown("---")
 
@@ -591,7 +636,7 @@ if navigation_page == "Dashboard":
         template="plotly_dark", height=300,
         margin=dict(t=20, b=20, l=160, r=160),
     )
-    st.plotly_chart(fig_funnel, use_container_width=True)
+    st.plotly_chart(fig_funnel, width="stretch")
 
     # ── Annotated process diagram ─────────────────────────────────────────────
     st.subheader("Annotated Pipeline Diagram")
@@ -632,7 +677,7 @@ elif navigation_page == "Collect Reviews":
         placeholder="https://community.spotify.com/t5/…",
     )
 
-    if st.button("Run Collection", use_container_width=True, type="primary"):
+    if st.button("Run Collection", width="stretch", type="primary"):
         if not sources:
             st.error("Select at least one source.")
         else:
@@ -643,7 +688,7 @@ elif navigation_page == "Collect Reviews":
             with logs_exp:
                 log_ph = st.empty()
 
-            with capture_logs(log_ph):
+            with capture_logs(log_ph) as log_capture:
                 try:
                     stage_status.info("Connecting to review sources…")
                     progress.progress(0.1)
@@ -672,16 +717,26 @@ elif navigation_page == "Collect Reviews":
                     st.rerun()
 
                 except RuntimeError as exc:
-                    stage_status.error(str(exc))
-                    progress.empty()
+                    handle_runtime_error(
+                        exc,
+                        stage_status=stage_status,
+                        progress=progress,
+                        log_capture=log_capture,
+                        message="Collection failed",
+                    )
                 except Exception as exc:
-                    stage_status.error(f"Unexpected error: {exc}")
-                    progress.empty()
+                    handle_runtime_error(
+                        exc,
+                        stage_status=stage_status,
+                        progress=progress,
+                        log_capture=log_capture,
+                        message="Unexpected error",
+                    )
 
     # Preview
     if df_raw is not None:
         st.subheader("Raw Reviews Preview")
-        st.dataframe(df_raw, use_container_width=True)
+        st.dataframe(df_raw, width="stretch")
 
         if "source" in df_raw.columns:
             st.subheader("Source Distribution")
@@ -693,7 +748,7 @@ elif navigation_page == "Collect Reviews":
                 color_discrete_sequence=["#1DB954", "#1aa34a", "#148a3a"],
             )
             fig.update_layout(height=300, margin=dict(t=40, b=40, l=40, r=40))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else:
         st.info("No raw reviews found.  Run collection above to begin.")
 
@@ -713,7 +768,7 @@ elif navigation_page == "Filter Reviews":
     min_len = c2.number_input("Min review length (chars)", 1, 500, config.DEFAULT_MIN_REVIEW_LENGTH)
     min_conf = st.slider("Min relevance confidence", 0.0, 1.0, 0.0, 0.05)
 
-    if st.button("Run Relevance Filtering", use_container_width=True, type="primary"):
+    if st.button("Run Relevance Filtering", width="stretch", type="primary"):
         if df_raw is None:
             st.error("Collect reviews first.")
         else:
@@ -725,7 +780,7 @@ elif navigation_page == "Filter Reviews":
             with logs_exp:
                 log_ph = st.empty()
 
-            with capture_logs(log_ph, notify):
+            with capture_logs(log_ph, notify) as log_capture:
                 try:
                     class _Args(_FilterArgs):
                         pass
@@ -753,12 +808,17 @@ elif navigation_page == "Filter Reviews":
                     st.rerun()
 
                 except Exception as exc:
-                    stage_status.error(f"Filtering failed: {exc}")
-                    progress.empty()
+                    handle_runtime_error(
+                        exc,
+                        stage_status=stage_status,
+                        progress=progress,
+                        log_capture=log_capture,
+                        message="Filtering failed",
+                    )
 
     if df_filt is not None:
         st.subheader("Filtered Reviews Preview")
-        st.dataframe(df_filt, use_container_width=True)
+        st.dataframe(df_filt, width="stretch")
 
         rej_n = len(df_rej) if df_rej is not None else 0
         filt_n = len(df_filt)
@@ -771,7 +831,7 @@ elif navigation_page == "Filter Reviews":
             color_discrete_sequence=["#1DB954", "#3d3d3d"],
         )
         fig.update_layout(height=300, margin=dict(t=44, b=40, l=40, r=40))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("No filtered reviews yet.  Run filtering above.")
 
@@ -790,7 +850,7 @@ elif navigation_page == "Analyze Reviews":
     batch_size = c1.number_input("Batch size", 1, 50, config.DEFAULT_BATCH_SIZE_ANALYZE)
     cont_err = c2.checkbox("Continue on partial AI errors", value=True)
 
-    if st.button("Run Insight Extraction", use_container_width=True, type="primary"):
+    if st.button("Run Insight Extraction", width="stretch", type="primary"):
         if df_filt is None:
             st.error("Run relevance filtering first.")
         else:
@@ -802,7 +862,7 @@ elif navigation_page == "Analyze Reviews":
             with logs_exp:
                 log_ph = st.empty()
 
-            with capture_logs(log_ph, notify):
+            with capture_logs(log_ph, notify) as log_capture:
                 try:
                     class _Args(_AnalyzeArgs):
                         pass
@@ -820,12 +880,17 @@ elif navigation_page == "Analyze Reviews":
                     st.rerun()
 
                 except Exception as exc:
-                    stage_status.error(f"Analysis failed: {exc}")
-                    progress.empty()
+                    handle_runtime_error(
+                        exc,
+                        stage_status=stage_status,
+                        progress=progress,
+                        log_capture=log_capture,
+                        message="Analysis failed",
+                    )
 
     if df_ana is not None:
         st.subheader("Analyzed Reviews Preview")
-        st.dataframe(df_ana, use_container_width=True)
+        st.dataframe(df_ana, width="stretch")
 
         st.markdown("---")
         st.subheader("Product Feedback Visualizations")
@@ -834,19 +899,19 @@ elif navigation_page == "Analyze Reviews":
         if "root_cause" in df_ana.columns:
             c1.plotly_chart(
                 bar_chart(df_ana, "root_cause", "Root Causes"),
-                use_container_width=True,
+                width="stretch",
             )
         if "pain_point" in df_ana.columns:
             c2.plotly_chart(
                 bar_chart(df_ana, "pain_point", "Pain Points"),
-                use_container_width=True,
+                width="stretch",
             )
 
         c3, c4 = st.columns(2)
         if "discovery_surface" in df_ana.columns:
             c3.plotly_chart(
                 bar_chart(df_ana, "discovery_surface", "Discovery Surfaces"),
-                use_container_width=True,
+                width="stretch",
             )
         if "user_segment" in df_ana.columns:
             seg_df = clean_counts(df_ana, "user_segment")
@@ -857,13 +922,13 @@ elif navigation_page == "Analyze Reviews":
                     color_discrete_sequence=["#1DB954", "#1aa34a", "#148a3a"],
                 )
                 fig_tree.update_layout(height=350, margin=dict(t=44, b=20, l=20, r=20))
-                c4.plotly_chart(fig_tree, use_container_width=True)
+                c4.plotly_chart(fig_tree, width="stretch")
 
         c5, c6 = st.columns(2)
         if "emotion" in df_ana.columns:
             c5.plotly_chart(
                 donut_chart(df_ana, "emotion", "Emotions Expressed"),
-                use_container_width=True,
+                width="stretch",
             )
         if "confidence" in df_ana.columns:
             fig_hist = px.histogram(
@@ -874,7 +939,7 @@ elif navigation_page == "Analyze Reviews":
             fig_hist.update_layout(
                 xaxis_title="Confidence", yaxis_title="Count", height=350,
             )
-            c6.plotly_chart(fig_hist, use_container_width=True)
+            c6.plotly_chart(fig_hist, width="stretch")
     else:
         st.info("No analysis results yet.  Run insight extraction above.")
 
@@ -894,7 +959,7 @@ elif navigation_page == "Theme Summary":
     )
     top_n = st.number_input("Top N themes per section", 1, 50, config.DEFAULT_TOP_N_THEMES)
 
-    if st.button("Generate Report", use_container_width=True, type="primary"):
+    if st.button("Generate Report", width="stretch", type="primary"):
         if df_ana is None:
             st.error("Run insight extraction first.")
         else:
@@ -905,7 +970,7 @@ elif navigation_page == "Theme Summary":
             with logs_exp:
                 log_ph = st.empty()
 
-            with capture_logs(log_ph):
+            with capture_logs(log_ph) as log_capture:
                 try:
                     stage_status.info("Clustering themes…")
                     progress.progress(0.4)
@@ -914,8 +979,13 @@ elif navigation_page == "Theme Summary":
                     stage_status.success(f"Report generated in {elapsed(t0)}.")
                     st.rerun()
                 except Exception as exc:
-                    stage_status.error(f"Report generation failed: {exc}")
-                    progress.empty()
+                    handle_runtime_error(
+                        exc,
+                        stage_status=stage_status,
+                        progress=progress,
+                        log_capture=log_capture,
+                        message="Report generation failed",
+                    )
 
     if config.THEME_SUMMARY_MD.exists():
         st.subheader("Report Preview")
@@ -985,7 +1055,7 @@ elif navigation_page == "Outputs":
                     path.name,
                     mime,
                     key=f"dl_{idx}",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.markdown(

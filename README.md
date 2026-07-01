@@ -57,7 +57,15 @@ Copy-Item .env.example .env   # then fill in your keys
 
 ---
 
-## Environment Variables
+## Configuration
+
+All runtime settings are resolved centrally in `config.py`.
+
+Configuration priority is:
+1. Streamlit Secrets (Streamlit Community Cloud)
+2. `.env` (local development)
+3. OS environment variables
+4. Built-in defaults
 
 | Variable | Required | Description |
 |---|---|---|
@@ -76,7 +84,7 @@ No API keys are required for Reddit or Spotify Community collection.
 ### Web Application
 
 ```powershell
-streamlit run streamlit_app.py
+python -m streamlit run streamlit_app.py
 ```
 
 ### CLI (individual pipeline stages)
@@ -154,7 +162,8 @@ Pipeline stages never print raw CLI output directly on the page.  Instead:
 
 - A **progress bar** advances through the stages.
 - **`st.status` containers** announce the current stage (e.g. *Stage 2/4 — Filtering reviews…*).
-- All stdout logs are routed into a collapsed **"Execution Logs"** expander for debugging.
+- All stdout/stderr output is routed into a collapsed **"Execution Logs"** expander for debugging.
+- Failures now preserve the original traceback and exception details, including HTTP/LLM/provider errors when available.
 - **Retry notices** are surfaced inline: *"Retrying 3 review(s) because the AI returned an incomplete response."*
 - Elapsed time is shown at each stage and on completion.
 
@@ -173,7 +182,7 @@ LLM_PROVIDER       = "openrouter"
 ```
 
 4. Click **Deploy**.  
-   `config.py` resolves secrets from `st.secrets` first, then `os.environ`, so no code changes are needed between local and cloud environments.
+   Local development uses `.env`; Streamlit Community Cloud uses Secrets. No code changes are required between the two environments.
 
 ---
 

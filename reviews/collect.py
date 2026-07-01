@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
-
-from dotenv import load_dotenv
 
 from config import (
     RAW_REVIEWS_CSV,
@@ -50,7 +47,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    load_dotenv()
     args = parse_args()
     reviews = []
 
