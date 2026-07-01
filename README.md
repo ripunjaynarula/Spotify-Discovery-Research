@@ -1,21 +1,21 @@
 # Spotify Discovery Research Pipeline
 
-AI-powered review analysis workflow for Spotify music discovery research.
+AI-powered review analysis workflow for a Product Management case study on Spotify music discovery.
 
-This project collects user feedback, filters for assignment relevance, extracts structured product insights with an LLM, and generates a presentation-ready theme summary. The pipeline includes both a command-line interface (CLI) and a polished, minimal, and modern Streamlit web application.
+The project collects user feedback from multiple sources, filters for relevance, extracts structured PM insights with an LLM, and generates a presentation-ready theme summary. It ships both a command-line interface (CLI) and a polished Streamlit web application.
 
 ---
 
 ## Architecture
 
 ```text
-       Collectors (Google Play, Reddit, Spotify Community)
+       Collectors (Google Play · Reddit · Spotify Community)
                            ↓
                     raw_reviews.csv
                            ↓
-             Deterministic Pre-filtering
+             Deterministic Keyword Pre-filter
                            ↓
-                  AI Relevance Filter
+                  AI Relevance Classifier
                            ↓
                   filtered_reviews.csv
                            ↓
@@ -23,7 +23,7 @@ This project collects user feedback, filters for assignment relevance, extracts 
                            ↓
                 analyzed_reviews.csv
                            ↓
-                   Theme Summary
+                    Theme Clustering
                            ↓
                   theme_summary.md
 ```
@@ -32,15 +32,16 @@ This project collects user feedback, filters for assignment relevance, extracts 
 
 ## Folder Structure
 
-```text
+```
 spotify-discovery-research/
-  .streamlit/   Streamlit UI configuration and theme settings
-  analysis/     LLM relevance filtering, insight extraction, and theme summary
-  reviews/      Review source collectors and raw review normalization
-  data/         Generated CSV datasets and pipeline metadata
-  output/       Generated markdown summaries and reports
-  config.py     Centralized paths and defaults settings
-  streamlit_app.py Multipage Streamlit application
+  .streamlit/          Streamlit theme and server settings
+  analysis/            Filter, analyze, and summarize modules
+  reviews/             Source collector modules and data models
+  data/                Generated CSV datasets and pipeline metadata
+  output/              Generated markdown reports
+  config.py            Centralized paths, secrets, and defaults
+  streamlit_app.py     Multipage Streamlit web application
+  requirements.txt     Python dependencies
 ```
 
 ---
@@ -51,20 +52,20 @@ spotify-discovery-research/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env
+Copy-Item .env.example .env   # then fill in your keys
 ```
 
 ---
 
 ## Environment Variables
 
-Required for LLM filtering and analysis:
-
-```text
-OPENROUTER_API_KEY=your_openrouter_key
-LLM_PROVIDER=openrouter
-OPENROUTER_MODEL=deepseek/deepseek-chat
-```
+| Variable | Required | Description |
+|---|---|---|
+| `OPENROUTER_API_KEY` | Yes (LLM stages) | API key for OpenRouter |
+| `OPENROUTER_MODEL` | No | Default: `deepseek/deepseek-chat` |
+| `LLM_PROVIDER` | No | Default: `openrouter` |
+| `GOOGLE_PLAY_COUNTRY` | No | Default: `us` |
+| `GOOGLE_PLAY_LANGUAGE` | No | Default: `en` |
 
 No API keys are required for Reddit or Spotify Community collection.
 
@@ -72,91 +73,116 @@ No API keys are required for Reddit or Spotify Community collection.
 
 ## Running Locally
 
-### 1. Web Application
-
-To run the interactive multipage web application locally:
+### Web Application
 
 ```powershell
 streamlit run streamlit_app.py
 ```
 
-### 2. Command Line Interface (CLI)
+### CLI (individual pipeline stages)
 
-The underlying analysis pipeline can also be run sequentially via CLI commands:
-
-#### Collect Reviews
 ```powershell
+# Collect
 python -m reviews.collect --sources google_play reddit spotify_community --limit 100
-```
 
-#### Run Relevance Filtering
-```powershell
+# Filter
 python -m analysis.filter_reviews
-```
 
-#### Run Insight Extraction
-```powershell
+# Analyze
 python -m analysis.analyze_reviews
-```
 
-#### Generate Theme Summary
-```powershell
+# Summarize
 python -m analysis.theme_summary
 ```
 
 ---
 
-## Multipage App Navigation
+## Streamlit App Navigation
 
-The Streamlit web interface is partitioned into 6 distinct navigation views:
-
-1. **Dashboard**: View the block-flow architecture of the pipeline annotated with dynamic record counts from the latest run, high-level metrics, and the **Executive Insights** engine showing:
-   * **Top Pain Point**: Most frequent discovery-related issue.
-   * **Top Root Cause**: Most frequent system cause.
-   * **Critical Segment**: Most affected user segment.
-   * **Primary Surface**: Most mentioned product surface.
-   * **Opportunity Recommendation**: A dynamically formulated PM opportunity statement linking the top segment, surface, root cause, and pain point.
-2. **Collect Reviews**: Run the collection modules (Google Play, Reddit, Spotify Community) interactively with configurable review limits. Features real-time log streaming and a preview of `raw_reviews.csv`.
-3. **Filter Reviews**: Run deterministic keyword pre-filtering and AI relevance filtering. Displays metrics cards for relevance distribution and confidence, with a preview of `filtered_reviews.csv`.
-4. **Analyze Reviews**: Run structured PM insight extraction (pain points, root causes, surfaces, segments, emotions, confidence). Displays interactive Plotly visualizations.
-5. **Theme Summary**: Compile structured labels into a readable markdown report. Renders the final markdown document in the UI for review.
-6. **Outputs**: A download center to download all generated datasets and reports in CSV or Markdown formats formatted as clean visual cards.
+| Page | Description |
+|---|---|
+| **Dashboard** | Executive KPIs, opportunity statement, funnel chart, annotated pipeline diagram, and a **Run Complete Pipeline** button |
+| **Collect Reviews** | Source selector, limit slider, per-source status table, donut chart |
+| **Filter Reviews** | Batch size / confidence controls, progress bar, relevance donut |
+| **Analyze Reviews** | Batch controls, Plotly bar / treemap / donut / histogram charts |
+| **Theme Summary** | Confidence cutoff, markdown preview, download |
+| **Outputs** | Report cards for every artifact with filename, size, timestamp, and download |
 
 ---
 
 ## Visualizations
 
-The dashboard contains the following customized chart types:
-- **Review Source Distribution**: Donut chart representing collection proportions.
-- **Relevance Distribution**: Donut chart representing relevance filter ratios.
-- **Processing Stage Funnel**: A Funnel chart tracking volume reduction from collection, pre-filtering, relevance filtering, and insight extraction.
-- **Root Causes, Pain Points, Surfaces**: Sorted horizontal bar charts in Spotify-green accents.
-- **User Segments**: A Plotly Treemap chart representing user segments.
-- **Confidence Distribution**: Styled confidence score histogram.
-- **Emotion Distribution**: Donut chart representing user sentiments.
+| Chart | Type |
+|---|---|
+| Review source distribution | Donut |
+| Relevant vs irrelevant | Donut |
+| Pain points | Horizontal bar |
+| Root causes | Horizontal bar |
+| Discovery surfaces | Horizontal bar |
+| User segments | Treemap |
+| Emotion distribution | Donut |
+| LLM confidence | Histogram |
+| Pipeline stage volumes | Funnel |
+
+---
+
+## Reddit Fallback Caching Strategy
+
+Reddit blocks automated HTTP requests from cloud-hosted servers (HTTP 403).
+
+The application handles this gracefully:
+
+1. **Live collection is attempted first.** If it succeeds the reviews are saved to `data/reddit_cache.csv` as a fresh snapshot.
+2. **On HTTP 403 or any network failure**, the most recent `data/reddit_cache.csv` is loaded instead. The collection stage continues uninterrupted.
+3. **A source status table** is displayed after collection showing each source's mode (Live / Cached), review count, and any error detail.
+4. **If cached data does not exist** (first cloud deployment with no prior cache), Reddit is skipped gracefully and the pipeline continues with the remaining sources.
+5. **The pipeline only fails** if every source returns zero reviews.
+
+To pre-seed the cache before deploying to Streamlit Cloud, run the collection locally once:
+
+```powershell
+python -m reviews.collect --sources reddit --limit 100
+# This writes data/raw_reviews.csv; copy the reddit rows to data/reddit_cache.csv
+# Or run the full app locally and let it create reddit_cache.csv automatically.
+```
+
+---
+
+## Execution UX
+
+Pipeline stages never print raw CLI output directly on the page.  Instead:
+
+- A **progress bar** advances through the stages.
+- **`st.status` containers** announce the current stage (e.g. *Stage 2/4 — Filtering reviews…*).
+- All stdout logs are routed into a collapsed **"Execution Logs"** expander for debugging.
+- **Retry notices** are surfaced inline: *"Retrying 3 review(s) because the AI returned an incomplete response."*
+- Elapsed time is shown at each stage and on completion.
 
 ---
 
 ## Deploying to Streamlit Community Cloud
 
-This project is configured to deploy directly to Streamlit Community Cloud without modifications:
+1. Push the repository to GitHub (`.streamlit/secrets.toml` and `data/*.csv` are git-ignored).
+2. Open [share.streamlit.io](https://share.streamlit.io), connect your repo, and select `streamlit_app.py` as the entry point.
+3. Under **Advanced Settings → Secrets**, add:
 
-1. Push your repository to GitHub.
-2. Navigate to [Streamlit Share](https://share.streamlit.io/) and select your repository, branch, and `streamlit_app.py` as the entry file.
-3. Under **Advanced Settings**, add your environment variables in the **Secrets** text area using TOML format:
-   ```toml
-   OPENROUTER_API_KEY = "your_actual_openrouter_api_key_here"
-   LLM_PROVIDER = "openrouter"
-   OPENROUTER_MODEL = "deepseek/deepseek-chat"
-   ```
-4. Click **Deploy**. The environment variables will be resolved automatically by `config.py` from Streamlit Secrets.
+```toml
+OPENROUTER_API_KEY = "sk-or-..."
+OPENROUTER_MODEL   = "deepseek/deepseek-chat"
+LLM_PROVIDER       = "openrouter"
+```
+
+4. Click **Deploy**.  
+   `config.py` resolves secrets from `st.secrets` first, then `os.environ`, so no code changes are needed between local and cloud environments.
 
 ---
 
-## Technical Quality Details
+## Limitations
 
-- **Deterministic Pre-Filtering**: Before using the LLM relevance filter, raw text is checked for key discovery terms to skip calling OpenRouter for obviously irrelevant data.
-- **Controlled Vocabulary Validation**: Extracted user segments, root causes, and discovery surfaces are programmatically validated case-insensitively. Low confidence extractions or invalid inputs are coerced to "unknown" to prevent AI hallucinations.
-- **Connection Pooling**: All HTTP calls reuse connections using `requests.Session` in collectors and the LLM client.
-- **Onboarding Empty-States**: Onboarding guides are displayed automatically if raw feedback datasets do not exist yet.
-- **"Run Complete Pipeline"**: One-click sidebar orchestrator that executes the pipeline end-to-end (Collect → Filter → Analyze → Summary) and streams logging progress.
+| Limitation | Mitigation |
+|---|---|
+| Reddit blocks cloud requests (HTTP 403) | Automatic fallback to `reddit_cache.csv` |
+| OpenRouter rate limits / timeouts | Retry logic with exponential back-off; `continue_on_error` mode |
+| Google Play scraping rate limits | Polite session reuse; limit slider |
+| Spotify Community HTML changes | Selector-based scraper may need updating if community layout changes |
+| LLM hallucinations | Controlled vocabulary validation coerces invalid labels to `"unknown"` |

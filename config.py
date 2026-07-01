@@ -55,6 +55,7 @@ REJECTED_REVIEWS_CSV = DATA_DIR / "rejected_reviews.csv"
 FILTER_SUMMARY_JSON = DATA_DIR / "filter_summary.json"
 ANALYZED_REVIEWS_CSV = DATA_DIR / "analyzed_reviews.csv"
 THEME_SUMMARY_MD = OUTPUT_DIR / "theme_summary.md"
+REDDIT_CACHE_CSV = DATA_DIR / "reddit_cache.csv"
 
 # LLM
 OPENROUTER_API_KEY = get_env_var("OPENROUTER_API_KEY")
