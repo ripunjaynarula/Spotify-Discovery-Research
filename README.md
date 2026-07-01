@@ -177,7 +177,7 @@ Pipeline stages never print raw CLI output directly on the page.  Instead:
 3. Under **Advanced Settings → Secrets**, add:
 
 ```toml
-OPENROUTER_API_KEY = "sk-or-..."
+OPENROUTER_API_KEY = ""
 OPENROUTER_MODEL   = "openai/gpt-4o-mini"
 LLM_PROVIDER       = "openrouter"
 ```
