@@ -11,8 +11,16 @@ from analysis.schema import ANALYSIS_FIELDS
 from reviews.models import RAW_REVIEW_FIELDS
 
 
-DEFAULT_INPUT_PATH = Path("data/analyzed_reviews.csv")
-DEFAULT_OUTPUT_PATH = Path("output/theme_summary.md")
+from config import (
+    ANALYZED_REVIEWS_CSV,
+    THEME_SUMMARY_MD,
+    DEFAULT_MIN_CONFIDENCE_SUMMARY,
+    DEFAULT_TOP_N_THEMES,
+    IGNORE_VALUES,
+)
+
+DEFAULT_INPUT_PATH = ANALYZED_REVIEWS_CSV
+DEFAULT_OUTPUT_PATH = THEME_SUMMARY_MD
 
 SUMMARY_SECTIONS = [
     ("Most common discovery problems", "pain_point"),
@@ -25,21 +33,7 @@ SUMMARY_SECTIONS = [
     ("User emotions", "emotion"),
 ]
 
-# Consolidated set of lowercase values to ignore
-IGNORE_VALUES = {
-    "",
-    "unknown",
-    "none",
-    "n/a",
-    "na",
-    "not available",
-    "not applicable",
-    "not discovery related",
-    "other",
-    "misc",
-    "no issue",
-    "not relevant",
-}
+# Local IGNORE_VALUES consolidated in config.py
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,11 +42,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
-    parser.add_argument("--top-n", type=int, default=10)
+    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N_THEMES)
     parser.add_argument(
         "--min-confidence",
         type=float,
-        default=0.7,
+        default=DEFAULT_MIN_CONFIDENCE_SUMMARY,
         help="Exclude rows below this confidence threshold.",
     )
     return parser.parse_args()

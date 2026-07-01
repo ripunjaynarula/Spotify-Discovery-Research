@@ -6,13 +6,20 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from config import (
+    RAW_REVIEWS_CSV,
+    DEFAULT_LIMIT,
+    GOOGLE_PLAY_COUNTRY,
+    GOOGLE_PLAY_LANGUAGE,
+)
+
 from reviews.google_play import collect_google_play_reviews
 from reviews.reddit import collect_reddit_reviews
 from reviews.spotify_community import collect_spotify_community_reviews
 from reviews.utils import write_raw_reviews_csv
 
 
-DEFAULT_OUTPUT_PATH = Path("data/raw_reviews.csv")
+DEFAULT_OUTPUT_PATH = RAW_REVIEWS_CSV
 SUPPORTED_SOURCES = ("google_play", "reddit", "spotify_community")
 
 
@@ -27,7 +34,7 @@ def parse_args() -> argparse.Namespace:
         default=["google_play"],
         help="Review sources to collect from.",
     )
-    parser.add_argument("--limit", type=int, default=100, help="Max reviews per run.")
+    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="Max reviews per run.")
     parser.add_argument(
         "--output",
         type=Path,
@@ -51,8 +58,8 @@ def main() -> None:
         reviews.extend(
             collect_google_play_reviews(
                 limit=args.limit,
-                country=os.getenv("GOOGLE_PLAY_COUNTRY", "us"),
-                language=os.getenv("GOOGLE_PLAY_LANGUAGE", "en"),
+                country=GOOGLE_PLAY_COUNTRY,
+                language=GOOGLE_PLAY_LANGUAGE,
             )
         )
 

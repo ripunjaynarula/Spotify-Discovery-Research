@@ -1,8 +1,8 @@
-# Spotify Discovery Research
+# Spotify Discovery Research Pipeline
 
 AI-powered review analysis workflow for Spotify music discovery research.
 
-This project collects user feedback, filters for assignment relevance, extracts structured product insights with an LLM, and generates a presentation-ready theme summary. The current LLM transport uses OpenRouter through plain HTTP requests.
+This project collects user feedback, filters for assignment relevance, extracts structured product insights with an LLM, and generates a presentation-ready theme summary. The pipeline includes both a command-line interface (CLI) and a polished, minimal, and modern Streamlit web application.
 
 ---
 
@@ -34,12 +34,13 @@ This project collects user feedback, filters for assignment relevance, extracts 
 
 ```text
 spotify-discovery-research/
-  analysis/     LLM filtering, insight extraction, and theme summary code
+  .streamlit/   Streamlit UI configuration and theme settings
+  analysis/     LLM relevance filtering, insight extraction, and theme summary
   reviews/      Review source collectors and raw review normalization
-  data/         Generated CSV datasets
-  output/       Generated markdown summaries and future charts
-  prototype/    Future demo or prototype artifacts
-  docs/         Architecture notes
+  data/         Generated CSV datasets and pipeline metadata
+  output/       Generated markdown summaries and reports
+  config.py     Centralized paths and defaults settings
+  streamlit_app.py Multipage Streamlit application
 ```
 
 ---
@@ -60,8 +61,8 @@ Copy-Item .env.example .env
 Required for LLM filtering and analysis:
 
 ```text
-LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_key
+LLM_PROVIDER=openrouter
 OPENROUTER_MODEL=deepseek/deepseek-chat
 ```
 
@@ -69,131 +70,93 @@ No API keys are required for Reddit or Spotify Community collection.
 
 ---
 
-## Execution Order and Pipeline Explanation
+## Running Locally
 
-The pipeline runs sequentially in these steps:
+### 1. Web Application
 
-1. **Review Collection**: Fetches reviews from Android (Google Play Store), Reddit public search, and Spotify Community boards. Normalizes raw reviews into a single deduplicated dataset (`data/raw_reviews.csv`).
-2. **Relevance Filtering**: Passes raw reviews through a deterministic pre-filter. Reviews containing no discovery-related keywords are immediately rejected to save API costs. The remaining reviews are analyzed by the LLM for deep relevance and filtered into `data/filtered_reviews.csv` (rejected reviews are logged in `data/rejected_reviews.csv`).
-3. **Insight Extraction**: Extracts structured PM insights (e.g. pain points, discovery surfaces, root causes, user segments) from relevant reviews. Responses are strictly validated against controlled vocabularies and saved to `data/analyzed_reviews.csv`.
-4. **Theme Summary**: Aggregates the structured insights by counting frequencies and calculating shares of meaningful labels. It extracts representative reviews directly from the data and writes a markdown report to `output/theme_summary.md`.
+To run the interactive multipage web application locally:
 
----
+```powershell
+streamlit run streamlit_app.py
+```
 
-## Example Commands
+### 2. Command Line Interface (CLI)
 
-### 1. Collect Reviews
+The underlying analysis pipeline can also be run sequentially via CLI commands:
 
+#### Collect Reviews
 ```powershell
 python -m reviews.collect --sources google_play reddit spotify_community --limit 100
 ```
 
-### 2. Run Relevance Filtering
-
+#### Run Relevance Filtering
 ```powershell
 python -m analysis.filter_reviews
 ```
 
-### 3. Run Insight Extraction
-
+#### Run Insight Extraction
 ```powershell
 python -m analysis.analyze_reviews
 ```
 
-### 4. Generate Theme Summary
-
+#### Generate Theme Summary
 ```powershell
 python -m analysis.theme_summary
 ```
 
 ---
 
-## Supported Review Sources
+## Multipage App Navigation
 
-1. **Google Play Store**: Fetches reviews using the `google-play-scraper` library.
-2. **Reddit**: Collects public Reddit discussions directly from public search pages (`old.reddit.com`) using HTTP requests and BeautifulSoup. **No API credentials are required.**
-3. **Spotify Community**: Collects discussions from search queries on the official community forum.
+The Streamlit web interface is partitioned into 6 distinct navigation views:
 
----
-
-## Technical Quality Improvements
-
-### 1. Improved Spotify Community Collector
-- Extracts **only** the original post title and body from the forum markup.
-- Completely decomposes and excludes forum meta-information: replies, comments, timestamps, author names, statistics (views, kudos, ratings, read counts), avatar classes, buttons, menus, and breadcrumbs.
-- Normalizes all whitespaces and cleans HTML structure.
-
-### 2. Improved Reddit Collector
-- Extracts **only** the post title and self-text snippet.
-- Excludes and decomposes subreddit links, flairs, usernames, vote/score numbers, comment counts, timestamps, and header metadata.
-- Normalizes all whitespaces.
-
-### 3. Clean Representative Reviews
-In the theme summary step:
-- The representative review is selected directly from the original review text in `analyzed_reviews.csv` (never uses metadata or parsed forum info).
-- Undergoes a rigorous cleanup: strips HTML tags, removes duplicate punctuation (e.g., reduces repeated dots or exclamation marks to single ones), normalizes repeated whitespace, and preserves complete words.
-- Truncates precisely to a maximum of 120 characters, appends an ellipsis on word boundaries, and escapes all markdown table/format special characters (`|`, `*`, `_`, `\`, etc.) to prevent table layout corruption.
-
-### 4. Behavioural User Segmentation
-The insight extraction prompt has been updated to prefer behavioural segments with the following priority order:
-1. `Discover Weekly User`
-2. `AI DJ User`
-3. `Smart Shuffle User`
-4. `Radio User`
-5. `Playlist User`
-6. `Artist Explorer`
-7. `Casual Listener`
-8. `Heavy Listener`
-9. `Student`
-10. `Working Professional`
-- Classified as `Premium User` or `Free User` **only** if the subscription model is explicitly central to the user's feedback.
-
-### 5. Controlled Vocabulary Enforcement
-- LLM prompts strictly enforce that `root_cause`, `discovery_surface`, and `user_segment` must reside inside the controlled vocabularies.
-- The pipeline programmatically validates labels case-insensitively and coerses them to exact vocabulary casing, coersing unrecognized labels or low-confidence extractions directly to `"unknown"`.
+1. **Dashboard**: View the block-flow architecture of the pipeline annotated with dynamic record counts from the latest run, high-level metrics, and the **Executive Insights** engine showing:
+   * **Top Pain Point**: Most frequent discovery-related issue.
+   * **Top Root Cause**: Most frequent system cause.
+   * **Critical Segment**: Most affected user segment.
+   * **Primary Surface**: Most mentioned product surface.
+   * **Opportunity Recommendation**: A dynamically formulated PM opportunity statement linking the top segment, surface, root cause, and pain point.
+2. **Collect Reviews**: Run the collection modules (Google Play, Reddit, Spotify Community) interactively with configurable review limits. Features real-time log streaming and a preview of `raw_reviews.csv`.
+3. **Filter Reviews**: Run deterministic keyword pre-filtering and AI relevance filtering. Displays metrics cards for relevance distribution and confidence, with a preview of `filtered_reviews.csv`.
+4. **Analyze Reviews**: Run structured PM insight extraction (pain points, root causes, surfaces, segments, emotions, confidence). Displays interactive Plotly visualizations.
+5. **Theme Summary**: Compile structured labels into a readable markdown report. Renders the final markdown document in the UI for review.
+6. **Outputs**: A download center to download all generated datasets and reports in CSV or Markdown formats formatted as clean visual cards.
 
 ---
 
-## Limitations
+## Visualizations
 
-- **Rate Limits**: Scraping old.reddit.com and the Spotify Community depends on HTTP requests; aggressive calling may result in temporary HTTP 429 rate limiting.
-- **Data Truncation**: Search page snippets on Reddit do not contain the full post body if it is exceptionally long.
-- **Deterministic Pre-filtering**: It is keyword-based; there is a minor possibility that a relevant post that uses highly unusual synonyms could be skipped.
-
----
-
-## Future Improvements
-
-- **Parallel Processing**: Batching LLM requests concurrently to speed up extraction.
-- **Incremental Collection**: Skipping already-scraped posts/reviews to save API cost.
-- **Semantic Clustering**: Using text embeddings to group themes rather than exact text matching.
+The dashboard contains the following customized chart types:
+- **Review Source Distribution**: Donut chart representing collection proportions.
+- **Relevance Distribution**: Donut chart representing relevance filter ratios.
+- **Processing Stage Funnel**: A Funnel chart tracking volume reduction from collection, pre-filtering, relevance filtering, and insight extraction.
+- **Root Causes, Pain Points, Surfaces**: Sorted horizontal bar charts in Spotify-green accents.
+- **User Segments**: A Plotly Treemap chart representing user segments.
+- **Confidence Distribution**: Styled confidence score histogram.
+- **Emotion Distribution**: Donut chart representing user sentiments.
 
 ---
 
-## Repository File Guide
+## Deploying to Streamlit Community Cloud
 
-Here is a guide to every changed file in this refactor and why it changed:
+This project is configured to deploy directly to Streamlit Community Cloud without modifications:
 
-### 1. `reviews/utils.py`
-- **Change**: Refactored `dedupe_reviews` to deduplicate by both `review.id` and normalized lowercase `review.review` text to prevent duplicates across queries and sources.
+1. Push your repository to GitHub.
+2. Navigate to [Streamlit Share](https://share.streamlit.io/) and select your repository, branch, and `streamlit_app.py` as the entry file.
+3. Under **Advanced Settings**, add your environment variables in the **Secrets** text area using TOML format:
+   ```toml
+   OPENROUTER_API_KEY = "your_actual_openrouter_api_key_here"
+   LLM_PROVIDER = "openrouter"
+   OPENROUTER_MODEL = "deepseek/deepseek-chat"
+   ```
+4. Click **Deploy**. The environment variables will be resolved automatically by `config.py` from Streamlit Secrets.
 
-### 2. `reviews/reddit.py`
-- **Change**: Replaced PRAW/Reddit API dependency with a public HTML scraper searching `old.reddit.com`. Decomposes flairs, author profiles, timestamps, comments count, and scores to keep only title + snippet content.
+---
 
-### 3. `reviews/spotify_community.py`
-- **Change**: Upgraded the collector to loop through multiple queries, reuse sessions, and decompose replies, comments, kudos, read counts, user ranks, and avatars.
+## Technical Quality Details
 
-### 4. `analysis/schema.py`
-- **Change**: Updated `ANALYSIS_FIELDS` and prompts. Added the behavioural user segment vocabulary. Created a shared `clamp_confidence` helper.
-
-### 5. `analysis/llm_client.py`
-- **Change**: Added connection pooling reuse (`requests.Session`) and validation/coercion against allowed lists. Imported the shared `clamp_confidence` helper to remove duplicates.
-
-### 6. `analysis/analyze_reviews.py`
-- **Change**: Changed default input path to `data/filtered_reviews.csv` and aligned column outputs with the updated `schema.py`.
-
-### 7. `analysis/filter_reviews.py`
-- **Change**: Added keyword-based deterministic pre-filtering and updated the system prompt. Removed local `_clamp_confidence` duplicate and imported the shared one.
-
-### 8. `analysis/theme_summary.py`
-- **Change**: Redesigned tables (removed Rank, added Representative Review), consolidated ignored values, implemented alphabetical sorting of tied themes, and added `clean_representative_review` to clean HTML, duplicate punctuation, normalize spacing, truncate at word boundaries, and escape markdown characters.
+- **Deterministic Pre-Filtering**: Before using the LLM relevance filter, raw text is checked for key discovery terms to skip calling OpenRouter for obviously irrelevant data.
+- **Controlled Vocabulary Validation**: Extracted user segments, root causes, and discovery surfaces are programmatically validated case-insensitively. Low confidence extractions or invalid inputs are coerced to "unknown" to prevent AI hallucinations.
+- **Connection Pooling**: All HTTP calls reuse connections using `requests.Session` in collectors and the LLM client.
+- **Onboarding Empty-States**: Onboarding guides are displayed automatically if raw feedback datasets do not exist yet.
+- **"Run Complete Pipeline"**: One-click sidebar orchestrator that executes the pipeline end-to-end (Collect → Filter → Analyze → Summary) and streams logging progress.

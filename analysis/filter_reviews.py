@@ -17,13 +17,25 @@ from analysis.schema import clamp_confidence
 from reviews.models import RAW_REVIEW_FIELDS
 
 
+from config import (
+    RAW_REVIEWS_CSV,
+    FILTERED_REVIEWS_CSV,
+    REJECTED_REVIEWS_CSV,
+    FILTER_SUMMARY_JSON,
+    OPENROUTER_MODEL,
+    DEFAULT_BATCH_SIZE_FILTER,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_DELAY_SECONDS,
+    DEFAULT_MIN_REVIEW_LENGTH,
+)
+
 load_dotenv()
 
-DEFAULT_INPUT_PATH = Path("data/raw_reviews.csv")
-DEFAULT_OUTPUT_PATH = Path("data/filtered_reviews.csv")
-DEFAULT_REJECTED_OUTPUT_PATH = Path("data/rejected_reviews.csv")
-DEFAULT_SUMMARY_OUTPUT_PATH = Path("data/filter_summary.json")
-DEFAULT_MODEL = "deepseek/deepseek-chat"
+DEFAULT_INPUT_PATH = RAW_REVIEWS_CSV
+DEFAULT_OUTPUT_PATH = FILTERED_REVIEWS_CSV
+DEFAULT_REJECTED_OUTPUT_PATH = REJECTED_REVIEWS_CSV
+DEFAULT_SUMMARY_OUTPUT_PATH = FILTER_SUMMARY_JSON
+DEFAULT_MODEL = OPENROUTER_MODEL
 
 RELEVANCE_FIELDS = ["relevant", "reason", "confidence"]
 
@@ -84,11 +96,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
-    parser.add_argument("--batch-size", type=int, default=50)
-    parser.add_argument("--model", default=os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL))
-    parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--retry-delay-seconds", type=float, default=2.0)
-    parser.add_argument("--min-review-length", type=int, default=15)
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE_FILTER)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
+    parser.add_argument("--retry-delay-seconds", type=float, default=DEFAULT_RETRY_DELAY_SECONDS)
+    parser.add_argument("--min-review-length", type=int, default=DEFAULT_MIN_REVIEW_LENGTH)
     parser.add_argument(
         "--min-confidence",
         type=float,

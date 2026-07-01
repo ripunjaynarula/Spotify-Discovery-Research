@@ -1,0 +1,11 @@
+[theme]
+primaryColor = "#1DB954" # Spotify Green
+backgroundColor = "#121212" # Modern dark background
+secondaryBackgroundColor = "#181818" # Spotify sidebar card dark color
+textColor = "#FFFFFF" # Clean white typography
+font = "sans serif"
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false

@@ -2,6 +2,7 @@
 .env
 .venv/
 venv/
+.streamlit/secrets.toml
 
 # Python
 __pycache__/

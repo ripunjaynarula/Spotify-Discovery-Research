@@ -5,16 +5,26 @@ import os
 from pathlib import Path
 
 import pandas as pd
+from config import (
+    FILTERED_REVIEWS_CSV,
+    ANALYZED_REVIEWS_CSV,
+    OPENROUTER_MODEL,
+    DEFAULT_BATCH_SIZE_ANALYZE,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_DELAY_SECONDS,
+)
+
 from dotenv import load_dotenv
 
 from analysis.llm_client import AnalysisError, analyze_review_batch
 from analysis.schema import ANALYSIS_FIELDS, empty_analysis
 from reviews.models import RAW_REVIEW_FIELDS
 
+load_dotenv()
 
-DEFAULT_INPUT_PATH = Path("data/filtered_reviews.csv")
-DEFAULT_OUTPUT_PATH = Path("data/analyzed_reviews.csv")
-DEFAULT_MODEL = "deepseek/deepseek-chat"
+DEFAULT_INPUT_PATH = FILTERED_REVIEWS_CSV
+DEFAULT_OUTPUT_PATH = ANALYZED_REVIEWS_CSV
+DEFAULT_MODEL = OPENROUTER_MODEL
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,10 +33,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
-    parser.add_argument("--batch-size", type=int, default=10)
-    parser.add_argument("--model", default=os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL))
-    parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--retry-delay-seconds", type=float, default=2.0)
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE_ANALYZE)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
+    parser.add_argument("--retry-delay-seconds", type=float, default=DEFAULT_RETRY_DELAY_SECONDS)
     parser.add_argument(
         "--continue-on-error",
         action="store_true",
