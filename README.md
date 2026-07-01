@@ -70,7 +70,7 @@ Configuration priority is:
 | Variable | Required | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` | Yes (LLM stages) | API key for OpenRouter |
-| `OPENROUTER_MODEL` | No | Default: `deepseek/deepseek-chat` |
+| `OPENROUTER_MODEL` | No | Default: `openai/gpt-4o-mini` |
 | `LLM_PROVIDER` | No | Default: `openrouter` |
 | `GOOGLE_PLAY_COUNTRY` | No | Default: `us` |
 | `GOOGLE_PLAY_LANGUAGE` | No | Default: `en` |
@@ -164,6 +164,7 @@ Pipeline stages never print raw CLI output directly on the page.  Instead:
 - **`st.status` containers** announce the current stage (e.g. *Stage 2/4 — Filtering reviews…*).
 - All stdout/stderr output is routed into a collapsed **"Execution Logs"** expander for debugging.
 - Failures now preserve the original traceback and exception details, including HTTP/LLM/provider errors when available.
+- Review text is truncated to 800 characters before LLM submission, and smaller default batch sizes reduce prompt pressure.
 - **Retry notices** are surfaced inline: *"Retrying 3 review(s) because the AI returned an incomplete response."*
 - Elapsed time is shown at each stage and on completion.
 
@@ -177,7 +178,7 @@ Pipeline stages never print raw CLI output directly on the page.  Instead:
 
 ```toml
 OPENROUTER_API_KEY = "sk-or-..."
-OPENROUTER_MODEL   = "deepseek/deepseek-chat"
+OPENROUTER_MODEL   = "openai/gpt-4o-mini"
 LLM_PROVIDER       = "openrouter"
 ```
 

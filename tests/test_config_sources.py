@@ -20,7 +20,7 @@ def test_config_is_the_single_source_for_env_values(monkeypatch):
     importlib.reload(config)
 
     assert config.OPENROUTER_API_KEY == ""
-    assert config.OPENROUTER_MODEL == "deepseek/deepseek-chat"
+    assert config.OPENROUTER_MODEL == "openai/gpt-4o-mini"
     assert config.LLM_PROVIDER == "openrouter"
     assert config.GOOGLE_PLAY_COUNTRY == "us"
     assert config.GOOGLE_PLAY_LANGUAGE == "en"

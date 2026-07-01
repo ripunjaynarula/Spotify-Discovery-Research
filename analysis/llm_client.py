@@ -9,7 +9,14 @@ from typing import Any
 
 import requests
 
-from config import OPENROUTER_API_KEY, OPENROUTER_MODEL, LLM_PROVIDER
+from config import (
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    LLM_PROVIDER,
+    DEFAULT_MODEL,
+    DEFAULT_MAX_TOKENS_RELEVANCE,
+    DEFAULT_MAX_TOKENS_ANALYSIS,
+)
 
 from analysis.schema import (
     ANALYSIS_FIELDS,
@@ -33,7 +40,6 @@ def _get_session() -> requests.Session:
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_PROVIDER = "openrouter"
-DEFAULT_MODEL = "deepseek/deepseek-chat"
 
 
 class AnalysisError(RuntimeError):
@@ -57,6 +63,7 @@ def analyze_review_batch(
             model=model,
             system_prompt=SYSTEM_PROMPT,
             user_prompt=build_batch_prompt(reviews),
+            max_tokens=DEFAULT_MAX_TOKENS_ANALYSIS,
         )
         parsed = parse_json_response(content)
         return normalize_batch_response(parsed, reviews)
@@ -64,8 +71,14 @@ def analyze_review_batch(
     return _with_retries(request_and_parse, max_retries, retry_delay_seconds)
 
 
-def generate_json_content(model: str, system_prompt: str, user_prompt: str) -> str:
+def generate_json_content(
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int | None = None,
+) -> str:
     selected_model = model or OPENROUTER_MODEL or DEFAULT_MODEL
+    selected_max_tokens = max_tokens or DEFAULT_MAX_TOKENS_ANALYSIS
     session = _get_session()
     response = session.post(
         OPENROUTER_URL,
@@ -83,7 +96,7 @@ def generate_json_content(model: str, system_prompt: str, user_prompt: str) -> s
                 },
             ],
             "temperature": 0,
-            "max_tokens": 7000,
+            "max_tokens": selected_max_tokens,
             "response_format": {
                 "type": "json_object",
             },
@@ -241,6 +254,13 @@ def _raise_for_response(response: requests.Response) -> None:
     if response.status_code == 401:
         raise LLMRequestError(
             f"OpenRouter authentication failed with 401. URL: {request_url}. Response body: {response_text}",
+            retry_after_seconds=retry_after_seconds,
+        )
+    if response.status_code == 402:
+        raise LLMRequestError(
+            "OpenRouter request exceeded the available token budget. "
+            "Try reducing the batch size or increasing available OpenRouter credits. "
+            f"URL: {request_url}. Response body: {response_text}",
             retry_after_seconds=retry_after_seconds,
         )
     if response.status_code == 429:

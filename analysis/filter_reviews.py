@@ -25,6 +25,8 @@ from config import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY_SECONDS,
     DEFAULT_MIN_REVIEW_LENGTH,
+    DEFAULT_MAX_TOKENS_RELEVANCE,
+    DEFAULT_MAX_REVIEW_CHARACTERS,
 )
 
 DEFAULT_INPUT_PATH = RAW_REVIEWS_CSV
@@ -311,6 +313,7 @@ def _request_relevance_batch(
             model=model,
             system_prompt=SYSTEM_PROMPT,
             user_prompt=build_relevance_prompt(reviews),
+            max_tokens=DEFAULT_MAX_TOKENS_RELEVANCE,
         )
         parsed = parse_json_response(content)
         return normalize_relevance_response(parsed, reviews)
@@ -444,10 +447,17 @@ def _prompt_records(batch: list[dict[str, object]]) -> list[dict[str, object]]:
     return [
         {
             "id": str(row["id"]),
-            "review": row["review"],
+            "review": _truncate_review_text(row.get("review"), DEFAULT_MAX_REVIEW_CHARACTERS),
         }
         for row in batch
     ]
+
+
+def _truncate_review_text(review: object, max_characters: int) -> str:
+    text = str(review or "").strip()
+    if len(text) <= max_characters:
+        return text
+    return f"{text[: max_characters - 3].rstrip()}..."
 
 
 def _normalize_relevance_item(item: dict[str, Any]) -> dict[str, object]:

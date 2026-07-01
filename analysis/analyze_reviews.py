@@ -11,6 +11,8 @@ from config import (
     DEFAULT_BATCH_SIZE_ANALYZE,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY_SECONDS,
+    DEFAULT_MAX_TOKENS_ANALYSIS,
+    DEFAULT_MAX_REVIEW_CHARACTERS,
 )
 
 from analysis.llm_client import AnalysisError, analyze_review_batch
@@ -104,13 +106,17 @@ def _prompt_records(batch: list[dict[str, object]]) -> list[dict[str, object]]:
     return [
         {
             "id": str(row["id"]),
-            "source": row["source"],
-            "rating": row["rating"],
-            "date": row["date"],
-            "review": row["review"],
+            "review": _truncate_review_text(row.get("review"), DEFAULT_MAX_REVIEW_CHARACTERS),
         }
         for row in batch
     ]
+
+
+def _truncate_review_text(review: object, max_characters: int) -> str:
+    text = str(review or "").strip()
+    if len(text) <= max_characters:
+        return text
+    return f"{text[: max_characters - 3].rstrip()}..."
 
 
 def _fallback_batch_analysis(batch: list[dict[str, object]]) -> list[dict[str, object]]:
